@@ -14,5 +14,5 @@ public:
     co_context::task<>
     http_parse(const char *request);
 
-    void send_message(const char *image_path, const char *head);
+    co_context::task<> send_message(const char *image_path, const char *head);
 };

@@ -1,23 +1,59 @@
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/sendfile.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include <sstream>
 #include <string>
-
+#include <string_view>
 #include "HTTPParser.hpp"
+
+using namespace std::string_view_literals;
 
 #define LOG(fmt, ...) \
     printf("[%s:%d]@%s " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 
 const char http_header[25] = "HTTP/1.1 200 Ok\r\n";
 
+constexpr std::string_view http_404_content =
+    "HTTP/1.0 404 Not Found\r\n"
+    "Content-type: text/html\r\n"
+    "\r\n"
+    "<html>"
+    "<head>"
+    "<title>ZeroHTTPd: Not Found</title>"
+    "</head>"
+    "<body>"
+    "<h1>Not Found (404)</h1>"
+    "<p>Your client is asking for an object that was not found on this server.</p>"
+    "</body>"
+    "</html>"sv;
+
 extern "C" void
 send_binary(int fd, char image_path[], char head[]);
+
+void fatal_error(const char *syscall)
+{
+    perror(syscall);
+    std::terminate();
+}
+
+co_context::task<void> prep_file_contents(
+    std::string_view file_path, off_t file_size, std::span<char> content_buffer)
+{
+    int fd;
+
+    fd = ::open(file_path.data(), O_RDONLY);
+    if (fd < 0)
+    {
+        fatal_error("read");
+    }
+
+    /* We should really check for short reads here */
+    int ret = co_await co_context::lazy::read(fd, content_buffer, 0);
+
+    if (ret < file_size) [[unlikely]]
+    {
+        co_context::log::w("Encountered a short read.\n");
+    }
+
+    ::close(fd);
+}
 
 struct HttpRequest
 {
@@ -125,7 +161,7 @@ HTTPParser::http_parse(const char *request)
             strcat(copy_head, "Content-Type: text/plain\r\n\r\n");
         }
 
-        send_message(path_head, copy_head);
+        co_await send_message(path_head, copy_head);
     }
     else
     {
@@ -135,40 +171,21 @@ HTTPParser::http_parse(const char *request)
     co_return;
 }
 
-void HTTPParser::send_message(const char *image_path, const char *head)
+co_context::task<> HTTPParser::send_message(const char *image_path,
+                                            const char *head)
 {
     struct stat stat_buf;
-    int fdimg = open(image_path, O_RDONLY);
-    if (fdimg < 0)
+    if (-1 == stat(image_path, &stat_buf) ||
+        !S_ISREG(stat_buf.st_mode))
     {
-        LOG("Cannot Open file path : %s with error %d\n", image_path, fdimg);
-        char head[500] = "HTTP/1.1 404 Not Found\r\n";
-        // m_sock.send({head, strlen(head)});
-        send(m_sock.fd(), head, strlen(head), 0);
-        return;
+        co_await m_sock.send(http_404_content);
     }
     else
     {
-        // m_sock.send({head, strlen(head)});
-        send(m_sock.fd(), head, strlen(head), 0);
-
-        fstat(fdimg, &stat_buf);
-        ssize_t sent_size = 0;
-        while (sent_size < stat_buf.st_size)
-        {
-            ssize_t done_bytes = sendfile(m_sock.fd(), fdimg, NULL, stat_buf.st_size);
-            if (done_bytes == -1)
-            {
-                LOG("Error sending file %s\n", image_path);
-                close(fdimg);
-                return;
-            }
-            sent_size = sent_size + done_bytes;
-        }
-
-        // LOG("success to send file: %s \n", image_path);
-        close(fdimg);
-
-        return;
+        std::vector<char> content_buf{};
+        content_buf.resize(stat_buf.st_size);
+        co_await prep_file_contents(image_path, stat_buf.st_size, content_buf);
+        co_await (
+            m_sock.send({head, strlen(head)}, MSG_MORE) && m_sock.send(content_buf));
     }
 }
