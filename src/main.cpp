@@ -1,6 +1,7 @@
 #include "co_context/net.hpp"
 #include "HTTPParser.hpp"
 #include <algorithm>
+#include <thread>
 
 using namespace co_context;
 using namespace std;
@@ -13,6 +14,8 @@ io_context worker[worker_num];
 
 #define LOG(fmt, ...) \
     printf("[%s:%d]@%s " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
+
+extern void processData();
 
 task<> session(int sockfd)
 {
@@ -103,15 +106,19 @@ int main(int argc, char **argv)
     server_ctx.co_spawn(server(port));
     server_ctx.start();
 
+
     for(auto &ctx : worker)
     {
         ctx.start();
     }
+
+    thread t(processData);
 
     // client_ctx.co_spawn(client());
     // client_ctx.start();
 
     // client_ctx.join();
     server_ctx.join();
+    t.join();
     return 0;
 }

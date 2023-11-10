@@ -11,6 +11,7 @@ if is_arch("riscv64") then
     add_toolchains("riscv")
 end
 
+add_links("atomic")
 
 target("coroutine")
     set_kind("binary")
