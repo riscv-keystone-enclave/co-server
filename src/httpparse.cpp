@@ -24,14 +24,16 @@ constexpr std::string_view http_404_content =
     "</body>"
     "</html>"sv;
 
-extern "C" void
-send_binary(int fd, char image_path[], char head[]);
+
 
 void fatal_error(const char *syscall)
 {
     perror(syscall);
     std::terminate();
 }
+
+co_context::task<void>
+sendBinary(co_context::socket &sock, const char header[]);
 
 co_context::task<void> prep_file_contents(
     std::string_view file_path, off_t file_size, std::span<char> content_buffer)
@@ -84,95 +86,96 @@ HttpRequest parseHttpRequest(const std::string &header)
 }
 
 co_context::task<>
-HTTPParser::http_parse(const char *request)
+HTTPParser::httpParse(const char *request)
 {
-    HttpRequest httpRequest = parseHttpRequest(request);
+    HttpRequest http_request = parseHttpRequest(request);
 
     char copy_head[4096];
     strcpy(copy_head, http_header);
 
-    if (httpRequest.method == "GET")
+    if (http_request.method == "GET")
     {
         char path_head[500] = ".";
 
-        if (httpRequest.path.size() <= 1)
+        if (http_request.path.size() <= 1)
         {
             strcat(path_head, "/index.html");
             strcat(copy_head, "Content-Type: text/html\r\n\r\n");
         }
-        else if (httpRequest.path == "test")
+        else if (http_request.path == "/test")
         {
             strcat(copy_head, "Content-Type: text/plain\r\n\r\n");
             // send_binary(new_socket, NULL, copy_head); // TODO
+            co_await sendBinary(m_sock, copy_head);
+            co_return;
         }
-        else if (httpRequest.extension == "jpg" || httpRequest.extension == "JPG")
+        else if (http_request.extension == "jpg" || http_request.extension == "JPG")
         {
             // send image to client
-            strcat(path_head, httpRequest.path.c_str());
+            strcat(path_head, http_request.path.c_str());
             strcat(copy_head, "Content-Type: image/jpeg\r\n\r\n");
         }
-        else if (httpRequest.extension == "ico")
+        else if (http_request.extension == "ico")
         {
             strcat(path_head, "/img/favicon.png");
             strcat(copy_head, "Content-Type: image/vnd.microsoft.icon\r\n\r\n");
         }
-        else if ("ttf" == httpRequest.extension)
+        else if ("ttf" == http_request.extension)
         {
-            strcat(path_head, httpRequest.path.c_str());
+            strcat(path_head, http_request.path.c_str());
             strcat(copy_head, "Content-Type: font/ttf\r\n\r\n");
         }
-        else if (httpRequest.extension == "js")
+        else if (http_request.extension == "js")
         {
             // javascript
-            strcat(path_head, httpRequest.path.c_str());
+            strcat(path_head, http_request.path.c_str());
             strcat(copy_head, "Content-Type: text/javascript\r\n\r\n");
         }
-        else if (httpRequest.extension == "css")
+        else if (http_request.extension == "css")
         {
             // css
-            strcat(path_head, httpRequest.path.c_str());
+            strcat(path_head, http_request.path.c_str());
             strcat(copy_head, "Content-Type: text/css\r\n\r\n");
         }
-        else if (httpRequest.extension.contains("wof"))
+        else if (http_request.extension.contains("wof"))
         {
             // Web Open Font Format woff and woff2
-            strcat(path_head, httpRequest.path.c_str());
+            strcat(path_head, http_request.path.c_str());
             strcat(copy_head, "Content-Type: font/woff\r\n\r\n");
         }
-        else if ("m3u8" == httpRequest.extension)
+        else if ("m3u8" == http_request.extension)
         {
             // Web Open m3u8
-            strcat(path_head, httpRequest.path.c_str());
+            strcat(path_head, http_request.path.c_str());
             strcat(
                 copy_head,
                 "Content-Type: application/vnd.apple.mpegurl\r\n\r\n");
         }
-        else if ("ts" == httpRequest.extension)
+        else if ("ts" == http_request.extension)
         {
             // Web Open ts
-            char path_head[500] = ".";
-            strcat(path_head, httpRequest.path.c_str());
+            strcat(path_head, http_request.path.c_str());
             strcat(copy_head, "Content-Type: video/mp2t\r\n\r\n");
         }
         else
         {
-            LOG("Else: %s \n", httpRequest.path.c_str());
-            strcat(path_head, httpRequest.path.c_str());
+            LOG("Else: %s \n", http_request.path.c_str());
+            strcat(path_head, http_request.path.c_str());
             strcat(copy_head, "Content-Type: text/plain\r\n\r\n");
         }
 
-        co_await send_message(path_head, copy_head);
+        co_await response(path_head, copy_head);
     }
     else
     {
-        LOG("ERROR! Method: %s \n", httpRequest.method.c_str());
+        LOG("ERROR! Method: %s \n", http_request.method.c_str());
         co_return;
     }
     co_return;
 }
 
-co_context::task<> HTTPParser::send_message(const char *image_path,
-                                            const char *head)
+co_context::task<> HTTPParser::response(const char *image_path,
+                                            const char *header)
 {
     struct stat stat_buf;
     if (-1 == stat(image_path, &stat_buf) ||
@@ -186,6 +189,6 @@ co_context::task<> HTTPParser::send_message(const char *image_path,
         content_buf.resize(stat_buf.st_size);
         co_await prep_file_contents(image_path, stat_buf.st_size, content_buf);
         co_await (
-            m_sock.send({head, strlen(head)}, MSG_MORE) && m_sock.send(content_buf));
+            m_sock.send({header, strlen(header)}, MSG_MORE) && m_sock.send(content_buf));
     }
 }

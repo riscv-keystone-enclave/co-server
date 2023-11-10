@@ -5,7 +5,14 @@
 using namespace co_context;
 using namespace std;
 
-class HTTPParser;
+constexpr uint16_t port = 8081;
+constexpr uint32_t worker_num = 4;
+io_context server_ctx;
+io_context worker[worker_num];
+// io_context client_ctx;
+
+#define LOG(fmt, ...) \
+    printf("[%s:%d]@%s " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 
 task<> session(int sockfd)
 {
@@ -17,7 +24,7 @@ task<> session(int sockfd)
 
     HTTPParser parser(sock);
 
-    char buf[8192];
+    char buf[512];
     int nr = co_await sock.recv(buf);
     if (nr <= 0) [[unlikely]]
     {
@@ -28,26 +35,83 @@ task<> session(int sockfd)
         co_return;
     }
 
-    co_await parser.http_parse(buf);
+    co_await parser.httpParse(buf);
 }
 
 task<void> server(const uint16_t port)
 {
-    printf("Server started on port %d\n", port);
+    LOG("Server started on port %d\n", port);
+    uint32_t turn = 0;
     acceptor ac{inet_address{port}};
     for (int sock; (sock = co_await ac.accept()) >= 0;)
     {
-        co_spawn(session(sock));
+	    // LOG("NEW SOCKET\n");
+        worker[turn].co_spawn(session(sock));
+        turn = (turn + 1) % worker_num;
     }
 }
 
+// task<> client()
+// {
+//     constexpr std::string_view host = "127.0.0.1";
+//     using Socket = co_context::socket;
+//     inet_address addr;
+//     if (inet_address::resolve(host, port, addr))
+//     {
+//         while (true)
+//         {
+//             co_await timeout(std::chrono::seconds{100});
+
+//             Socket sock{Socket::create_tcp(addr.family())};
+//             LOG("connect...\n");
+//             int res = co_await sock.connect(addr);
+//             if (res < 0)
+//             {
+//                 log::e("%s\n", strerror(-res));
+//                 ::exit(0);
+//             }
+//             LOG("connect...OK\n");
+
+//             // http request for test
+//             string_view http_request = "GET /test HTTP/1.1\r\n";
+//             co_await sock.send(http_request);
+//             LOG("send http request\n");
+//             // rescv http response
+//             char buf[8192];
+//             int nr = co_await sock.recv(buf);
+//             LOG("recv http response, size = %d, content = \n%s\n", nr, buf);
+//         }
+//     }
+//     else
+//     {
+//         LOG("resolve failed\n");
+//     }
+// }
+
 int main(int argc, char **argv)
 {
-    chdir("/home/wang/Documents/co-server/public");
+    int res = chdir("/keystone/co-server/public");
+    if (res < 0)
+    {
+        perror("chdir");
+    }
+    else
+    {
+        LOG("chdir success\n");
+    }
 
-    io_context ctx;
-    ctx.co_spawn(server(8080));
-    ctx.start();
-    ctx.join();
+    server_ctx.co_spawn(server(port));
+    server_ctx.start();
+
+    for(auto &ctx : worker)
+    {
+        ctx.start();
+    }
+
+    // client_ctx.co_spawn(client());
+    // client_ctx.start();
+
+    // client_ctx.join();
+    server_ctx.join();
     return 0;
 }

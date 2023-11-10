@@ -12,7 +12,7 @@ public:
     virtual ~HTTPParser() {}
 
     co_context::task<>
-    http_parse(const char *request);
+    httpParse(const char *request);
 
-    co_context::task<> send_message(const char *image_path, const char *head);
+    co_context::task<> response(const char *image_path, const char *head);
 };

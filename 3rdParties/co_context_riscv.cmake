@@ -1,0 +1,14 @@
+# CrossCompile.cmake
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR riscv64)
+set(CMAKE_SYSTEM_VERSION 5.19)
+set(tools /opt/riscv-gnu-toolchain)
+set(CMAKE_SYSROOT ${tools}/sysroot)
+set(PREFIX ${tools}/bin/riscv64-unknown-linux-gnu-)
+set(CMAKE_C_COMPILER ${PREFIX}gcc)
+set(CMAKE_CXX_COMPILER ${PREFIX}g++)
+
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)

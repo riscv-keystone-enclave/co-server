@@ -1,26 +1,33 @@
+includes("./toolchains/*.lua")
+includes("./3rdParties/*.lua")
+
+
 add_rules("mode.debug", "mode.release")
 
-package("co_context")
-    add_deps("cmake")
-    set_sourcedir(path.join(os.scriptdir(), "co_context"))
-    on_install(function (package)
-        local configs = {}
-        -- git clone
-        table.insert(configs, "-DCMAKE_BUILD_TYPE=" .. (package:debug() and "Debug" or "Release"))
-        table.insert(configs, "-DBUILD_SHARED_LIBS=OFF")
-        import("package.tools.cmake").install(package, configs)
-    end)
-package_end()
 
 add_requires("co_context")
+
+if is_arch("riscv64") then
+    add_toolchains("riscv")
+end
+
 
 target("coroutine")
     set_kind("binary")
     add_includedirs("include")
     add_files("src/*.cpp")
     add_packages("co_context")
-    add_defines("LIBURINGCXX_KERNEL_VERSION_MAJOR=6", "LIBURINGCXX_KERNEL_VERSION_MINOR=2")
+    add_defines("LIBURINGCXX_KERNEL_VERSION_MAJOR=5", "LIBURINGCXX_KERNEL_VERSION_MINOR=19")
     add_languages("gnuxx23")
+
+    on_run(function (target)
+        if is_arch("riscv64") then
+            os.execv("/keystone/qemu/build/qemu-riscv64", {"-L", "/opt/riscv-gnu-toolchain/sysroot", target:targetfile()})
+        else
+            os.execv(target:targetfile())
+        end
+    end)
+
 --
 -- If you want to known more usage about xmake, please see https://xmake.io
 --
