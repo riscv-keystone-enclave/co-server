@@ -10,12 +10,10 @@ constexpr uint16_t port = 8081;
 constexpr uint32_t worker_num = 4;
 io_context server_ctx;
 io_context worker[worker_num];
-// io_context client_ctx;
 
 #define LOG(fmt, ...) \
     printf("[%s:%d]@%s " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 
-extern void processData();
 
 task<> session(int sockfd)
 {
@@ -54,42 +52,6 @@ task<void> server(const uint16_t port)
     }
 }
 
-// task<> client()
-// {
-//     constexpr std::string_view host = "127.0.0.1";
-//     using Socket = co_context::socket;
-//     inet_address addr;
-//     if (inet_address::resolve(host, port, addr))
-//     {
-//         while (true)
-//         {
-//             co_await timeout(std::chrono::seconds{100});
-
-//             Socket sock{Socket::create_tcp(addr.family())};
-//             LOG("connect...\n");
-//             int res = co_await sock.connect(addr);
-//             if (res < 0)
-//             {
-//                 log::e("%s\n", strerror(-res));
-//                 ::exit(0);
-//             }
-//             LOG("connect...OK\n");
-
-//             // http request for test
-//             string_view http_request = "GET /test HTTP/1.1\r\n";
-//             co_await sock.send(http_request);
-//             LOG("send http request\n");
-//             // rescv http response
-//             char buf[8192];
-//             int nr = co_await sock.recv(buf);
-//             LOG("recv http response, size = %d, content = \n%s\n", nr, buf);
-//         }
-//     }
-//     else
-//     {
-//         LOG("resolve failed\n");
-//     }
-// }
 
 int main(int argc, char **argv)
 {
@@ -112,13 +74,8 @@ int main(int argc, char **argv)
         ctx.start();
     }
 
-    thread t(processData);
 
-    // client_ctx.co_spawn(client());
-    // client_ctx.start();
 
-    // client_ctx.join();
     server_ctx.join();
-    t.join();
     return 0;
 }
