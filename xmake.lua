@@ -13,7 +13,7 @@ end
 
 add_links("atomic")
 
-target("coroutine")
+target("co-server")
     set_kind("binary")
     add_includedirs("include")
     add_files("src/*.cpp")
