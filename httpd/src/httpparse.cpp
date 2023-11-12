@@ -105,7 +105,7 @@ HTTPParser::httpParse(const char *request)
         else if (http_request.path == "/test")
         {
             strcat(copy_head, "Content-Type: text/plain\r\n\r\n");
-            // send_binary(new_socket, NULL, copy_head); // TODO
+            // LOG("access to /test\n");
             co_await sendBinary(m_sock, copy_head);
             co_return;
         }
