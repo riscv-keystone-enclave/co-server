@@ -17,11 +17,6 @@ constexpr uint16_t port = 8081;
 #define LOG(fmt, ...) \
     printf("[%s:%d]@%s " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
 
-// defined in host.cpp
-void
-host_uintr_init();
-
-
 
 task<> session(int sockfd)
 {
@@ -49,8 +44,6 @@ task<> session(int sockfd)
 
 task<void> server(const uint16_t port)
 {
-    host_uintr_init();
-
     LOG("Server started on port %d\n", port);
     uint32_t turn = 0;
     acceptor ac{inet_address{port}};

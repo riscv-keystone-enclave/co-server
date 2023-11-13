@@ -1,5 +1,5 @@
 
-set(eapp_bin co-server-uintr)
+set(eapp_bin co-server-ocall)
 file(GLOB eapp_src eapp/*.c)
 set(host_bin ${eapp_bin}-runner)
 file(GLOB host_src "httpd/src/*.cpp")
