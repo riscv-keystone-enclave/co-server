@@ -31,7 +31,7 @@ extern LockFreeQueue<DATA> g_queue_ret;
 co_context::task<void>
 sendBinary(co_context::socket& sock, const char header[]) {
     DATA data;
-    memset(data.data(), 0, data.size());
+    // memset(data.data(), 0, data.size());
 
     while (g_queue_call.enqueue(data) == false)[[unlikely]] {
         co_await lazy::yield();
@@ -42,14 +42,14 @@ sendBinary(co_context::socket& sock, const char header[]) {
     }
 
 
-    for(uint32_t i = 0; i < data.size(); ++i)
-    {
-        if(data[i] != (uint8_t)i & 0x3f)
-        {
-            LOG("ERROR! data[%d] = %d\n", i, data[i]);
-            break;
-        }
-    }
+    // for(uint32_t i = 0; i < data.size(); ++i)
+    // {
+    //     if(data[i] != (uint8_t)i & 0x3f)
+    //     {
+    //         LOG("ERROR! data[%d] = %d\n", i, data[i]);
+    //         break;
+    //     }
+    // }
 
     co_await (sock.send({header, strlen(header)}, MSG_MORE) && sock.send(data));
 }
